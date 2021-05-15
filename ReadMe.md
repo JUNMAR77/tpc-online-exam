@@ -1,6 +1,6 @@
-# TestMe
+# tpc-online-exam
 
-TestMe is an easy-to-use open source online examination system for high schools built with Laravel and VueJS.
+tpc-online-exam is an easy-to-use open source online examination system for college built with Laravel and VueJS.
 
 ## Installation
 
@@ -9,11 +9,11 @@ Please check the official laravel installation guide for server requirements bef
 
 Clone the repository
 
-    git clone https://github.com/prismathic/TestMe.git
+    git clone https://github.com/junmar77/tpc-online-exam.git
 
 Switch to the repo folder
 
-    cd TestMe
+    cd tpc-online-exam
 
 Install all the dependencies using composer
 
