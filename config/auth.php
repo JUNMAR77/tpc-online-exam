@@ -45,13 +45,7 @@ return [
             'driver' => 'token',
             'provider' => 'users',
             'hash' => false,
-      ],
-        //Add Admin Guard
-        'admins' => [
-            'driver' => 'session',
-            'provider' => 'admins',
         ],
-
     ],
 
     /*
@@ -74,12 +68,7 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => App\User::class,
-        ],
-        //Add Admins Provider
-        'admins' => [
-            'driver' => 'eloquent',
-            'model' => App\Admin::class,
+            'model' => App\Models\User::class,
         ],
 
         // 'users' => [
@@ -108,6 +97,7 @@ return [
             'provider' => 'users',
             'table' => 'password_resets',
             'expire' => 60,
+            'throttle' => 60,
         ],
     ],
 

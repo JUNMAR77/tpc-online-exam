@@ -3,10 +3,17 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Notifications\RegistrationSuccessNotification;
+use App\Providers\RouteServiceProvider;
+use App\Models\User;
 use Auth;
-use App\User;
-use Illuminate\Support\Facades\Session;
+use Carbon\Carbon;
+use Illuminate\Foundation\Auth\AuthenticatesUsers;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Routing\Redirector;
+use Laravel\Socialite\Facades\Socialite;
 
 class LoginController extends Controller
 {
@@ -21,14 +28,14 @@ class LoginController extends Controller
     |
     */
 
-    // use AuthenticatesUsers;
+    use AuthenticatesUsers;
 
     /**
      * Where to redirect users after login.
      *
      * @var string
      */
-    protected $redirectTo = '/home';
+    protected $redirectTo = "home";
 
     /**
      * Create a new controller instance.
@@ -40,93 +47,99 @@ class LoginController extends Controller
         $this->middleware('guest')->except('logout');
     }
 
-    public function showLoginForm()
-    {
-        return view('auth.login');
-    }
-
-    public function login(Request $request)
-    {
-        $code = $request->input('code');
-        $firstname = $request->input('firstname');
-        $lastname = $request->input('lastname');
-        $user = User::where('code',$code)->where('firstname',$firstname)->where('lastname',$lastname)->first();
-
-
-        if ($user) {
-            Auth::login($user);
-            return redirect()->intended('/home');
-        }
-
-        return redirect('login')->withErrors('Incorrect Login Credentials');
-    }
-
-    /**
-     * Validate the user login request.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return void
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
-    protected function validateLogin(Request $request)
-    {
-        //Note that the username field here represents the code
-        $request->validate([
-            $this->username() => 'required|integer',
-            'lastname' => 'required|string',
-            'firstname' => 'required|string',
-        ]);
-    }
-
-    /**
-     * Attempt to log the user into the application.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return bool
-     */
-    protected function attemptLogin(Request $request)
-    {
-        return $this->guard()->attempt(
-            $this->credentials($request)
-        );
-    }
-
-    /**
-     * Get the needed authorization credentials from the request.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return array
-     */
-    protected function credentials(Request $request)
-    {
-        return $request->only($this->username(), 'firstname', 'lastname');
-    }
-
     /**
      * Send the response after the user was authenticated.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
+     * @param Request $request
+     * @return RedirectResponse|Redirector
      */
     protected function sendLoginResponse(Request $request)
     {
+        //check active status
+        if ($this->guard()->user()->status == 0){
+            Auth::logout();
+            return redirect('login')->with('error', 'Your account is not active. Please contact with admin.');
+        }
+
         $request->session()->regenerate();
 
         $this->clearLoginAttempts($request);
 
         return $this->authenticated($request, $this->guard()->user())
-                ?: redirect()->intended($this->redirectPath());
+            ?: redirect()->intended($this->redirectPath());
     }
 
-    public function username()
+    /**
+     * Redirect the user to the GitHub authentication page.
+     *
+     * @param $provider
+     * @return \Symfony\Component\HttpFoundation\RedirectResponse
+     */
+    public function redirectToProvider($provider)
     {
-        return 'code';
+        return Socialite::driver($provider)->redirect();
     }
 
-    public function logout() {
-        Auth::logout();
-        return redirect('/login');
+    /**
+     * Obtain the user information from GitHub.
+     *
+     * @param $provider
+     * @return RedirectResponse
+     */
+    public function handleProviderCallback($provider)
+    {
+        $userSocial = Socialite::driver($provider)->user();
+
+        $user = $this->checkExitUser($provider, $userSocial->getEmail(), $userSocial->id);
+
+        if(!$user){
+
+            $user = User::create([
+                'role_id'     => 2,
+                'account_type_id' => 0,
+                'name'        => $userSocial->name?:$userSocial->nickname,
+                'email'       => $userSocial->email,
+                'provider'    => $provider,
+                'provider_id' => $userSocial->id,
+                'expire_date' => Carbon::today()->addMonths(12)->format('Y-m-d'),
+                'is_paid' => 0
+            ]);
+
+            $user->notify(new RegistrationSuccessNotification($user));
+        }
+
+        Auth::login($user);
+
+        return redirect('home');
     }
 
+    public function checkExitUser($provider, $email, $provider_id){
+
+        if ($email) {
+            if ($user = User::where('email', $email)->first()) {
+                return $user;
+            }
+        } else {
+            if ($user = User::where('provider_id', $provider_id)->where('provider', $provider)->first()) {
+                return $user;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Log the user out of the application.
+     *
+     * @param Request $request
+     * @return RedirectResponse|Redirector
+     */
+    public function logout(Request $request)
+    {
+        $this->guard()->logout();
+
+        $request->session()->invalidate();
+
+        return $this->loggedOut($request) ?: redirect('/');
+    }
 }

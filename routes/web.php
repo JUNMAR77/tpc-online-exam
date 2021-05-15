@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
+;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -11,108 +13,149 @@
 |
 */
 
-use Illuminate\Support\Facades\Route;
-
 Route::get('/', function () {
-    return view('welcome');
-});
+    return view('home');
+})->name('home');
 
-Route::post('register/institution', function(){
-    return view('register.institution');
-});
+Auth::routes();
 
-Route::get('/singleresult', function() {
-    return view('admin.main-result');
-});
+//Main website redirection
+Route::get('/register/{package}', 'App\Http\Controllers\Frontend\MainSiteRedirectController@redirectToRegister')
+    ->where(['package' => 'basic|model|complete']);
 
-Route::get('/hostexam', function() {
-    return view('admin.host-exam');
-});
+//User routes............
+Route::group(['middleware' => ['auth', 'checkUserStatus'], 'namespace' => 'App\Http\Controllers\Frontend'], function(){
 
+    //Profile
+    Route::get('profile', 'UserController@profile')->name('profile');
+    Route::put('profile/{user}', 'UserController@updateProfile')->name('profile.update');
+    Route::get('renew', 'UserController@renew')->name('user.renew');
 
-Route::get('/login', 'Auth\LoginController@showLoginForm')->name('login');
-Route::post('/login', 'Auth\LoginController@login');
-Route::get('/logout', 'Auth\LoginController@logout')->name('logout');
+    //Password
+    Route::get('password-change', 'UserController@changePassword')->name('password.change');
+    Route::post('password-update', 'UserController@updatePassword')->name('password.changed');
 
-Route::get('/exam/{subject}','StudentController@getExamQuestions')->name('exam');
+    Route::group(['middleware' => ['checkDepartment']], function() {
 
+        //Study
+        Route::get('study', 'StudyController@showSelectSubject')->name('study.select-subject');
+        Route::post('study', 'StudyController@selectSubject')->name('study.select-subject');
+        Route::get('study/question', 'StudyController@question')->name('study.question');
+        Route::post('study/question', 'StudyController@submitQuestion')->name('study.question.submit');
+        Route::post('study/finished', 'StudyController@finished')->name('study.question.finished');
 
-// Auth::routes();
+        Route::group(['middleware' => ['paidUser']], function() {
 
-Route::get('/home', 'StudentController@index')->name('home');
+            //Practice
+            Route::get('practice', 'PracticeController@showSelectSubject')->name('practice.select-subject');
+            Route::post('practice', 'PracticeController@selectSubject')->name('practice.select-subject');
+            Route::get('practice/question', 'PracticeController@question')->name('practice.question');
+            Route::post('practice/question', 'PracticeController@submitQuestion')->name('practice.question.submit');
+            Route::get('practice/summery', 'PracticeController@summery')->name('practice.summery');
+            Route::post('practice/finished', 'PracticeController@finished')->name('practice.question.finished');
+            Route::post('practice/restart', 'PracticeController@restart')->name('practice.question.restart');
 
-Route::group(['prefix' => 'api'], function () {
-    Route::get('/getQuestions','StudentController@getAjaxQuestions')->name('get-questions');
-    Route::post('/updateQuestion/{id}','AdminController@updateQuestion');
-    Route::post('/addQuestion', 'AdminController@addQuestion')->middleware('check-exam-status');
-    Route::post('/deleteQuestion/{id}','AdminController@deleteQuestion')->middleware('check-exam-status');
-    Route::post('/submitExam', 'StudentController@submitExam');
-    Route::post('/exams','AdminController@createExam')->middleware('check-exam-status');
-    Route::put('/exams/{id}','AdminController@updateExam')->middleware('check-exam-status');
-    Route::patch('/start-exam','AdminController@startExam');
-    Route::patch('/end-exam/{id}','AdminController@endExam');
-    Route::post('/useTemplate/{template_id}','AdminController@createExamFromTemplate');
-    Route::post('/students', 'AdminController@addStudent');
-    Route::put('/students/{id}','AdminController@updateStudent');
-    Route::delete('/students/{id}','AdminController@deleteStudent');
-    Route::get('/disableStudent/{id}','AdminController@disableStudent');
-    Route::get('/restoreStudent/{id}','AdminController@restoreStudent');
-    Route::group(['prefix' => 'admins', 'middleware' => ['auth:admins']], function() {
-        Route::post('/','Admin\AdminSectionController@createAdmin')->middleware('can:superAdminGate');
-        Route::get('/teachers','Admin\AdminSectionController@getAllTeachers')->middleware('can:superAdminGate');
-        Route::post('/teachers','Admin\AdminSectionController@createTeacher')->middleware('can:superAdminGate');
-        Route::put('/teachers/{id}','Admin\AdminSectionController@updateTeacher')->middleware('can:superAdminGate');
-        Route::delete('/teachers/{id}','Admin\AdminSectionController@deleteTeacher')->middleware('can:superAdminGate');
-        Route::get('/subjects','Admin\AdminSectionController@getAllSubjects')->middleware('can:superAdminGate');
-        Route::post('/subjects','Admin\AdminSectionController@createSubject')->middleware('can:superAdminGate');
-        Route::put('/subjects/{id}','Admin\AdminSectionController@updateSubject')->middleware('can:superAdminGate');
-        Route::post('/confirmPassword', 'AdminController@confirmPassword');
-        Route::put('/updatePassword', 'AdminController@updatePassword');
+            Route::group(['middleware' => ['accessExam']], function() {
 
+                //Examination
+                Route::get('examination', 'ExaminationController@prepareExam')->name('examination.prepare');
+                Route::get('examination/start/{exam_notification_id}', 'ExaminationController@startExam')->name('examination.start');
+                Route::get('examination/question', 'ExaminationController@question')->name('examination.question');
+                Route::post('examination/question', 'ExaminationController@submitQuestion')->name('examination.question.submit');
+                Route::get('examination/summery', 'PracticeController@summery')->name('examination.summery');
+                Route::post('examination/finished', 'PracticeController@finished')->name('examination.question.finished');
+                Route::get('examination/top-scorer', 'TopScorerController@index')->name('examination.topScorer');
+            });
+        });
+     });
+
+    Route::group(['middleware' => ['paidUser']], function() {
+
+        //Library
+        Route::get('libraries', 'LibraryController@index')->name('libraries.index');
+
+        Route::group(['middleware' => ['checkDepartment']], function() {
+
+            //Video
+            Route::get('video', 'VideoController@index')->name('video.index');
+            Route::get('video/{subject}', 'VideoController@videos')->name('video.video-list');
+        });
+
+        //Routine
+        Route::get('routines', 'RoutineController@index')->name('routines.index');
     });
-    Route::get('/generateNumber', function() {
-        $characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+});
 
-        $code = mt_rand(5111, 9999) . $characters[rand(0, strlen($characters) - 1)] . $characters[rand(0, strlen($characters) - 1)];
 
-        dd($code);
 
+//Admin routes.........
+Route::group(['middleware' => ['auth', 'admin'], 'as' => 'admin.', 'namespace' => 'App\Http\Controllers\Admin'], function(){
+
+    //Clear cache
+    Route::get('cache', function () {
+        Artisan::call('cache:clear');
+        Artisan::call('config:clear');
+        Artisan::call('view:clear');
+        Artisan::call('route:clear');
+        Artisan::call('optimize:clear');
+
+        echo 'Cache clear successful.';
     });
+
+    Route::get('home', function () {
+        return view('home');
+    });
+
+	//Departments
+	Route::resource('departments', 'DepartmentController');
+    Route::get('departments/edit/{department}', 'DepartmentController@edit')->name('department.edit');
+    Route::post('departments/update/{department}', 'DepartmentController@update')->name('department.update');
+    Route::get('get-department-list', 'DepartmentController@getDepartmentList')->name('get-department-list');
+
+	//Subjects
+	Route::resource('subjects', 'SubjectController');
+    Route::get('subjects/edit/{subject}', 'SubjectController@edit')->name('subject.edit');
+    Route::post('subjects/update/{subject}', 'SubjectController@update')->name('subject.update');
+
+	//Questions
+	Route::resource('questions', 'QuestionController');
+    Route::get('questions/show/{question}', 'QuestionController@show')->name('question.show');
+	Route::get('get-option-list', 'QuestionController@getOptionList')->name('get-option-list');
+
+    //Question Template
+    Route::resource('question-templates', 'QuestionTemplateController');
+
+	//Users
+	Route::get('users', 'UserController@index')->name('users.index');
+	Route::get('users/edit/{user}', 'UserController@edit')->name('user.edit');
+	Route::post('users/update/{user}', 'UserController@update')->name('user.update');
+
+	//Notifications
+    Route::resource('notifications', 'NotificationController');
+
+    //Payments
+    Route::get('payments', 'PaymentController@index')->name('payments.index');
+
+    //Videos
+    Route::resource('videos', 'VideoController');
 });
 
-Route::get('/success','StudentController@submitSuccess')->name('success');
 
-Route::group(['prefix' => 'admin'], function () {
-    Route::get('/login', "Admin\LoginController@showLoginForm")->name('admin-login');
-    Route::post('/login', "Admin\LoginController@authenticate");
-    Route::get('/logout', "Admin\LoginController@logout")->name('admin-logout');
-    Route::get('/', 'AdminController@dashboard')->name('dashboard');
-    Route::get('/students', 'AdminController@getAllStudents')->name('students');
-    Route::get('/account', 'AdminController@getAccountPage')->name('account');
-    Route::get('/{subject}/hostexam','AdminController@hostExam')->name('host-exam');
-    Route::get('/{subject}/endexam','AdminController@endExam')->name('end-exam');
-    Route::get('/teachers', 'Admin\AdminSectionController@teachersPage')->name('teachers');
-    Route::get('/subjects', 'Admin\AdminSectionController@subjectsPage')->name('subjects');
-    Route::get('/{subject}/{class_id}/questions', 'AdminController@getAllQuestions')->name('questions');
-    Route::get('/{subject}/{class_id}/results', 'AdminController@getSingleResult')->name('results');
-    Route::get('/{subject}/{class_id}/results/download/{exam_id}', 'AdminController@downloadResult')->name('download-result');
+// SSLCOMMERZ Start
+Route::group(['middleware' => 'auth'], function(){
 
+    Route::get('/payment', 'App\Http\Controllers\SslCommerzPaymentController@exampleHostedCheckout')->name('payment');
+
+    Route::post('/pay', 'App\Http\Controllers\SslCommerzPaymentController@index');
+
+    Route::post('/success', 'App\Http\Controllers\SslCommerzPaymentController@success');
+    Route::post('/fail', 'App\Http\Controllers\SslCommerzPaymentController@fail');
+    Route::post('/cancel', 'App\Http\Controllers\SslCommerzPaymentController@cancel');
+
+    Route::post('/ipn', 'App\Http\Controllers\SslCommerzPaymentController@ipn');
 });
+//SSLCOMMERZ END
 
-//function to add new teacher (username, password and subject, c'est fini)
-//function to add new admin (like a superadmin) - username and password only. Confirm that the user wants to add the person as an admin
-
-//Function to update admin details. Only the details of the admin that is logged in (like his/her username and password), the person's username and password
-//function to delete a teacher, that is to revoke their access.
-
-//can't delete an admin, can only revoke the person's access. Admins have equal rights so it should be very minimal
-//teacher can also change password but not subject
-//function to add the new teacher to the database on the place that the user is located
-//admin cannot change teacher's password, he can only change his own password and add a new teacher
-
-//why does a teacher's password have to be renewed everyday?
-//Teacher can change password but not subject
-
-//username should have no spaces in between. An example is aremu.physics or aremu_physics or olaosebikan-chemistry
-//main admin username can be anything.
-//so main admin can only add and delete teachers
+//Socialite
+Route::get('login/{provider}', 'App\Http\Controllers\Auth\LoginController@redirectToProvider');
+Route::get('login/{provider}/callback', 'App\Http\Controllers\Auth\LoginController@handleProviderCallback');

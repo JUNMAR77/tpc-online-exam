@@ -15,15 +15,24 @@ class CreateUsersTable extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->bigIncrements('id');
-            $table->integer('class_id')->unsigned();
-            $table->foreign('class_id')->references('id')->on('classes');
-            $table->string('firstname');
-            $table->string('lastname');
-            $table->string('code');
-            // $table->timestamp('email_verified_at')->nullable();
-            // $table->string('password');
-            // $table->rememberToken();
-            // $table->timestamps();
+            $table->bigInteger('department_id')->default(0)->nullable();
+            $table->bigInteger('package_id')->default(0)->nullable()->comment('1=basic, 2=model, 3=complete');
+            $table->string('provider')->nullable();
+            $table->string('provider_id')->nullable();
+            $table->bigInteger('role_id')->default(2)->comment('1=admin, 2=student');
+            $table->Integer('account_type_id')->default(0)->comment('0=free, 1=paid');
+            $table->string('name')->nullable();
+            $table->string('last_name');
+            $table->string('email')->nullable();
+            $table->string('phone')->nullable();
+            $table->text('address')->nullable();
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password')->nullable();
+            $table->date('expire_date')->nullable();
+            $table->boolean('is_paid')->default(0);
+            $table->boolean('status')->default(1);
+            $table->rememberToken();
+            $table->timestamps();
         });
     }
 
